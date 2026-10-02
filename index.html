@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Who's the Impostor? · WGU PA Team</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="/style.css">
+<style>
+.conn{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));font-size:.75rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px;z-index:2}
+.conn::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime)}
+.conn.off::before{background:var(--red);box-shadow:0 0 10px var(--red)}
+.chip.offline{opacity:.45;text-decoration:line-through}
+</style>
+</head>
+<body>
+<div class="bgfx" id="bgfx" aria-hidden="true"></div>
+<div class="wrap">
+  <div class="bar">
+    <div class="brand"><span>🦉</span><span class="bt">WGU PA TEAM<small>Sprint party · Who's the Impostor?</small></span></div>
+    <div class="pills" id="pills"></div>
+  </div>
+  <div class="stage" id="stage">
+    <div class="eyebrow">Connecting</div>
+    <h1>Setting up the game room…</h1>
+    <p class="lead">Keep Microsoft Teams open for voice. Use this page for secret words, voting, and scores.</p>
+  </div>
+</div>
+<div class="host" id="host" hidden data-closed="1">
+  <header id="hostHead"><span>🎛️ Host panel</span><span id="hostToggle">▴</span></header>
+  <div class="body" id="hostBody"></div>
+</div>
+<div class="conn off" id="conn">connecting</div>
+<canvas id="confetti"></canvas>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/morphdom/2.7.4/morphdom-umd.min.js"></script>
+<script>
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ls = { get(k){ try{ return localStorage.getItem(k); }catch{ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch{} } };
+const colorFor = name => { let h=0; for (const c of name) h=(h*31+c.charCodeAt(0))>>>0; return `hsl(${h%360} 85% 70%)`; };
+const initials = name => name.trim().split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const toast = (msg, ms=4000) => { const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), ms); };
+const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+
+/* background drift */
+(()=>{ const el=$("#bgfx"); const em=["🕵️","☕","🍵","🐶","🐱","🍕","🎮","🎉","🔍","🦉","🚀","🐛","🎲","🤫"]; for (let i=0;i<16;i++){ const sp=document.createElement("span"); sp.textContent=em[i%em.length]; sp.style.left=(Math.random()*96)+"%"; sp.style.animationDuration=(18+Math.random()*22)+"s"; sp.style.animationDelay=(-Math.random()*30)+"s"; sp.style.fontSize=(1.4+Math.random()*2)+"rem"; el.appendChild(sp);} })();
+
+/* ---------- identity ---------- */
+let pid = ls.get("impostor:pid"); if (!pid){ pid = crypto.randomUUID().replace(/-/g,""); ls.set("impostor:pid", pid); }
+const url = new URL(location.href);
+if (url.searchParams.has("host")){ ls.set("impostor:host", url.searchParams.get("host")); url.searchParams.delete("host"); history.replaceState(null, "", url.pathname + (url.search||"") ); }
+const hostCode = ls.get("impostor:host") || "";
+
+/* ---------- state ---------- */
+const S = { st:null, secret:null, isHost:false, selected:null, lastKey:"", revealStep:"a", inflight:new Set(), _finalBurst:null, _lastPhase:null };
+const me = () => S.st?.players.find(p=>p.id===pid) || null;
+const pById = id => S.st?.players.find(p=>p.id===id);
+const nameOf = id => pById(id)?.name || "Someone";
+const roster = () => S.st?.roster || [];
+const inRoster = () => roster().includes(pid);
+const elapsed = () => S.st ? (Date.now() - (S.st.phaseStartedAt||Date.now()))/1000 : 0;
+const remaining = () => S.st?.phaseSeconds ? Math.max(0, S.st.phaseSeconds - elapsed()) : null;
+const readyCount = () => roster().filter(id => pById(id)?.ready).length;
+
+/* ---------- socket ---------- */
+const socket = io({ transports:["websocket","polling"] });
+socket.on("connect", () => { socket.emit("hello", { pid, hostCode }, (r) => { if (r?.pid) { pid = r.pid; ls.set("impostor:pid", pid); } S.isHost = !!r?.isHost; render(true); }); $("#conn").classList.remove("off"); $("#conn").textContent="live"; });
+socket.on("disconnect", () => { $("#conn").classList.add("off"); $("#conn").textContent="reconnecting…"; });
+socket.on("state", st => { if (st.phase!==S._lastPhase){ S.selected=null; S._lastPhase=st.phase; } S.st = st; render(); });
+socket.on("secret", sec => { S.secret = sec; render(); });
+function send(ev, payload, label){
+  if (S.inflight.has(label)) return; S.inflight.add(label);
+  socket.timeout(8000).emit(ev, payload, (err, r) => { S.inflight.delete(label); if (err) toast("No answer from the server. Check your connection and try again."); else if (r?.error) toast(r.error); render(true); });
+}
+const host = (action, arg) => send("host", {action, arg}, "host:"+action);
+
+setInterval(() => {
+  if (!S.st) return;
+  const t = $("#timer"); if (t){ const r = remaining(); if (r!==null){ t.textContent = fmt(r); t.classList.toggle("low", r<=15); } }
+  if (S.st.phase==="reveal"){ const e=elapsed(); const step = e<2.5?"a":e<5.5?"b":"c"; if (step!==S.revealStep){ S.revealStep=step; const el=$(".reveal"); if (el) el.dataset.step=step; if (step==="c" && S.st.result && !S.st.result.tie) burst(S.st.result.caught?140:60); } }
+  const vn = $("#voteN"); if (vn && S.st.phase==="voting") vn.textContent = S.st.voteCount;
+  if (S.isHost && !$("#host").hidden) renderHostStats();
+}, 250);
+$("#hostHead").onclick = () => { const h=$("#host"); h.dataset.closed = h.dataset.closed==="1"?"0":"1"; $("#hostToggle").textContent = h.dataset.closed==="1"?"▴":"▾"; };
+
+/* ---------- render ---------- */
+function setStage(html){ const stage=$("#stage"); if (window.morphdom){ const t=document.createElement("div"); t.innerHTML=html; morphdom(stage, t, {childrenOnly:true}); } else stage.innerHTML = html; }
+function chips(ids, doneFn){
+  return `<div class="chips">${ids.map(id=>{ const p=pById(id); const n=p?.name||"?"; const d=doneFn?doneFn(id):null; return `<div class="chip ${d===true?"done":d===false?"wait":""} ${id===pid?"me":""} ${p && !p.connected?"offline":""}" title="${p && !p.connected?"disconnected":""}"><span class="av" style="background:${colorFor(n)}">${esc(initials(n))}</span>${esc(n)}</div>`; }).join("")}</div>`;
+}
+function leaderboard(scores, deltas){
+  const ids = roster().length ? roster() : Object.keys(scores||{});
+  const rows = ids.map(id=>({id, pts:scores?.[id]||0})).sort((a,b)=>b.pts-a.pts || nameOf(a.id).localeCompare(nameOf(b.id)));
+  const medal = i => ["🥇","🥈","🥉"][i] || `#${i+1}`;
+  return `<div class="lb">${rows.map((r,i)=>`<div class="lrow"><span class="rk">${medal(i)}</span><span>${esc(nameOf(r.id))}${deltas&&deltas[r.id]?`<span class="delta">+${deltas[r.id]}</span>`:""}</span><span class="pts">${r.pts}</span></div>`).join("")}</div>`;
+}
+const title = `<div class="eyebrow">WGU PA Team · Sprint celebration</div><div class="big-emoji wob">🕵️</div><h1 class="glow">WHO'S THE IMPOSTOR?</h1>`;
+function spectator(msg){ return `<div class="big-emoji">👀</div><h1>SPECTATING</h1><p class="lead">${esc(msg)} You joined after the game started, so you'll be dealt in next game.</p>${leaderboard(S.st.scores)}`; }
+
+function render(force){
+  const st = S.st;
+  const key = JSON.stringify([st && {...st, voteCount: (st.phase==="voting" && !me()?.voted) ? "x" : st.voteCount}, S.secret, S.selected, S.isHost, pid]);
+  if (!force && key===S.lastKey) return; S.lastKey = key;
+  renderPills(); renderHost();
+  if (!st){ setStage(`${title}<p class="lead">Connecting to the game server…</p>`); bind(); return; }
+  const m = me(); const N = st.names.length;
+  switch (st.phase){
+    case "lobby": {
+      const joined = st.players;
+      const takenNames = new Map(joined.map(p=>[p.name.toLowerCase(), p.id]));
+      setStage(`${title}
+        ${m ? `<p class="lead">You're in as <b style="color:var(--lime)">${esc(m.name)}</b>. Waiting for the host to start.</p>` : `<p class="lead">Join the game. Pick your name:</p>
+        <div class="names">${st.names.map(n=>{ const by=takenNames.get(n.toLowerCase()); return `<button class="name" data-join="${esc(n)}" ${by?"disabled":""}>${esc(n)}</button>`; }).join("")}</div>
+        <div class="custom"><input id="customName" placeholder="Not on the list? Type a name" maxlength="24"><button class="btn g" id="joinCustom">Join</button></div>`}
+        <div class="count">${joined.length} / ${N}<small>players joined</small></div>
+        ${chips(joined.map(p=>p.id))}
+        ${S.isHost && joined.length ? `<p class="note">Someone listed who isn't here? <button class="btn g" id="kickMode" style="padding:6px 12px;font-size:.8rem">Remove a player</button></p><div id="kickList" hidden class="chips">${joined.map(p=>`<button class="chip" data-kick="${p.id}">✕ ${esc(p.name)}</button>`).join("")}</div>`:""}
+        ${S.isHost ? `<div class="row"><button class="btn p ${joined.length>=N?"ready-pulse":""}" id="start" ${joined.length<N?"disabled":""}>Start game</button>${joined.length>=st.minPlayers && joined.length<N ? `<button class="btn g" id="startAnyway">Start with ${joined.length} players</button>`:""}</div>
+        <div class="copyrow"><code id="shareUrl">${esc(location.origin + location.pathname)}</code><button class="btn g" id="copy">Copy link</button></div>` : ""}`);
+      break; }
+    case "roles": {
+      if (!inRoster()) { setStage(spectator(`Round ${st.round} is being dealt.`)); break; }
+      const s = S.secret && S.secret.round===st.round && S.secret.gameId===st.gameId ? S.secret : null; const isReady = !!m?.ready;
+      setStage(s ? `<div class="${s.role==="imp"?"role-imp":"role-crew"}">
+          <span class="tag ${s.role}">${s.role==="imp"?"🔴 You ARE the impostor":"🟢 You are NOT the impostor"}</span>
+          <p class="lead">Your secret word is</p><div class="big-emoji">${s.e}</div><div class="word">${esc(s.w)}</div>
+          <p class="lead">${s.role==="imp"?"Blend in and don't get caught! Everyone else shares a different, related word.":"Keep this secret! One player has a different word."}</p>
+          <div class="row"><button class="btn ${s.role==="imp"?"p":"l"}" id="ready" ${isReady?"disabled":""}>${isReady?"✓ You're ready":"I'm ready"}</button></div>
+          <div class="count">${readyCount()} / ${roster().length}<small>players ready</small></div>${chips(roster(), id=>!!pById(id)?.ready)}</div>`
+        : `<div class="big-emoji">🔐</div><h2>Dealing your secret…</h2><p class="lead">One moment.</p>`);
+      break; }
+    case "clues": case "discussion": {
+      const clue = st.phase==="clues"; const s = S.secret;
+      setStage(`<div class="eyebrow">Round ${st.round} · ${clue?"Clue round":"Discussion"}</div><div class="big-emoji">${clue?"🗣️":"🕵️"}</div>
+        <h1>${clue?"GIVE ONE WORD":"WHO'S LYING?"}</h1>
+        <p class="lead">${clue?"Say ONE word as your clue, out loud in Teams. Don't say your secret word. Go around in the order below.":"Discuss out loud in Teams. Who gave a clue that didn't fit?"}</p>
+        ${s && inRoster() ? `<p class="note">Your word: ${s.e} <b>${esc(s.w)}</b> ${s.role==="imp"?"(you're the impostor 🤫)":""}</p>`:""}
+        ${chips(roster())}
+        ${S.isHost ? `<div class="row"><button class="btn c" id="${clue?"toDiscuss":"toVote"}">${clue?"Start discussion":"Start voting"}</button></div>`:`<p class="note">The host moves the game on when everyone's done.</p>`}`);
+      break; }
+    case "voting": {
+      if (!inRoster()) { setStage(spectator("Voting is underway.")); break; }
+      const voted = !!m?.voted; const cands = (st.voteCandidates||roster()).filter(id=>id!==pid);
+      setStage(`<div class="eyebrow">Round ${st.round}${(st.voteAttempt||1)>1?" · Tiebreak":""}</div><div class="big-emoji">🚨</div><h1>WHO IS THE IMPOSTOR?</h1>
+        ${st.voteCandidates ? `<p class="lead">It was a tie. Vote again between the tied players.</p>`:`<p class="lead">Pick exactly one person. You can't change your vote once it's cast.</p>`}
+        ${voted ? `<div class="count" style="color:var(--lime)">✅ Vote submitted<small>${st.voteCount} / ${roster().length} votes in</small></div>${chips(roster(), id=>!!pById(id)?.voted)}`
+           : `<div class="ballot">${cands.map(id=>{const n=nameOf(id); return `<button class="cand ${S.selected===id?"sel":""}" data-sel="${id}"><span class="av" style="background:${colorFor(n)}">${esc(initials(n))}</span>${esc(n)}</button>`;}).join("")}</div>
+             <div class="row"><button class="btn p" id="vote" ${S.selected?"":"disabled"}>Cast vote</button></div><div class="count"><span id="voteN">${st.voteCount}</span> / ${roster().length}<small>votes in</small></div>`}`);
+      break; }
+    case "reveal": {
+      const r = st.result; const sus = r.suspected ? nameOf(r.suspected) : null;
+      S.revealStep = elapsed()<2.5?"a":elapsed()<5.5?"b":"c";
+      setStage(`<div class="reveal" data-step="${S.revealStep}">
+        <div class="stepA"><div class="big-emoji">🚨</div><h1>THE VOTES ARE IN</h1></div>
+        <div class="stepB">${r.tie ? `<p class="lead">It's a tie between</p><div class="drama">${r.tiedIds.map(nameOf).map(esc).join(" & ")}</div>` : r.escaped ? `<p class="lead">No agreement. The team let someone slip away…</p>` : `<p class="lead">The team suspects…</p><div class="drama">${esc(sus)}</div>`}</div>
+        <div class="stepC">${r.tie ? `<p class="lead">Host, start the tiebreak vote.</p>` : `<p class="lead" style="margin-top:26px">🕵️ The impostor was…</p><div class="drama red">${esc(nameOf(r.impostor))} ${r.caught?"😱":"😂"}</div>
+          <p class="lead">${r.caught ? "Caught! +2 points to everyone who voted right." : "Got away with it! +5 points to the impostor."}</p>
+          <div class="words"><div class="wcard"><div class="l">Secret word</div><div class="e">${r.imp.e}</div><div class="w" style="color:var(--red)">${esc(r.imp.w)}</div></div><div class="wcard"><div class="l">Common word</div><div class="e">${r.common.e}</div><div class="w" style="color:var(--lime)">${esc(r.common.w)}</div></div></div>`}
+          ${S.isHost ? `<div class="row">${r.tie ? `<button class="btn p" id="revote">Start tiebreak vote</button>` : `<button class="btn c" id="toScores">Show results</button>`}</div>`:""}
+        </div></div>`);
+      break; }
+    case "scores": {
+      const r = st.result; const ids = roster(); const max = Math.max(1, ...Object.values(r.tally));
+      setStage(`<div class="eyebrow">Round ${st.round} results</div><h1>${r.caught?"IMPOSTOR CAUGHT":"IMPOSTOR ESCAPED"}</h1>
+        <p class="lead">${esc(nameOf(r.impostor))} had ${r.imp.e} <b>${esc(r.imp.w)}</b>. Everyone else had ${r.common.e} <b>${esc(r.common.w)}</b>.</p>
+        <div class="tally">${ids.map(id=>({id,n:r.tally[id]||0})).sort((a,b)=>b.n-a.n).map(x=>`<div class="trow ${x.id===r.impostor?"imp":""}"><span class="who">${esc(nameOf(x.id))}${x.id===r.impostor?" 🕵️":""}</span><div class="barw"><div class="barf" style="width:${(x.n/max)*100}%"></div></div><span class="n">${x.n}</span></div>`).join("")}</div>
+        <h2 style="margin-top:28px">🏆 Leaderboard</h2>${leaderboard(st.scores, r.deltas)}
+        ${S.isHost ? `<div class="row"><button class="btn p" id="next">${st.round>=st.rounds?"Final results":"Next round"}</button></div>`:""}`);
+      break; }
+    case "final": {
+      const ids = roster(); const top = ids.map(id=>({id,pts:st.scores?.[id]||0})).sort((a,b)=>b.pts-a.pts);
+      const champs = top.filter(x=>x.pts===top[0]?.pts);
+      setStage(`<div class="big-emoji">🎉</div><h1>GAME OVER</h1><p class="lead">🏆 Impostor champion${champs.length>1?"s":""}</p><div class="drama">${champs.map(c=>esc(nameOf(c.id))).join(" & ")}</div>
+        <h2 style="margin-top:28px">Final leaderboard</h2>${leaderboard(st.scores)}
+        ${S.isHost ? `<div class="row"><button class="btn p" id="again">Play again</button></div>`:""}`);
+      if (S._finalBurst!==st.gameId){ S._finalBurst=st.gameId; burst(260); setTimeout(()=>burst(200), 1200); }
+      break; }
+    default: setStage(`<h1>Unknown phase</h1>`);
+  }
+  bind();
+}
+function renderPills(){
+  const st=S.st; const el=$("#pills"); if (!st){ el.innerHTML=""; return; }
+  const names = {lobby:"Lobby", roles:"Secret roles", clues:"Clues", discussion:"Discussion", voting:"Voting", reveal:"Reveal", scores:"Results", final:"Game over"};
+  el.innerHTML = `${st.round?`<span class="pill on">Round ${st.round} / ${st.rounds}</span>`:""}<span class="pill">${names[st.phase]||st.phase}</span>${st.phaseSeconds?`<span class="timer" id="timer">${fmt(remaining())}</span>`:""}`;
+}
+function renderHost(){
+  const h=$("#host"); h.hidden = !S.isHost || !S.st; if (h.hidden) return;
+  const st=S.st;
+  const ctl = {
+    lobby: `<button class="hbtn" data-host="start" ${st.players.length<st.minPlayers?"disabled":""}>Start game</button>`,
+    roles: `<button class="hbtn" data-host="clues">Start clues (skip waiting)</button><button class="hbtn warn" data-host="redeal">Redeal round</button>`,
+    clues: `<button class="hbtn" data-host="discussion">Start discussion</button>`,
+    discussion: `<button class="hbtn" data-host="voting">Start voting</button>`,
+    voting: `<button class="hbtn" data-host="forceReveal">Force reveal (missing votes ignored)</button><div class="hint">Reveals automatically once every vote is in.</div>`,
+    reveal: st.result?.tie ? `<button class="hbtn" data-host="revote">Start tiebreak vote</button>` : `<button class="hbtn" data-host="scores">Show results</button>`,
+    scores: `<button class="hbtn" data-host="next">${st.round>=st.rounds?"Final results":"Next round"}</button>`,
+    final: `<button class="hbtn" data-host="playAgain">Play again</button>`,
+  }[st.phase] || "";
+  $("#hostBody").innerHTML = `<div class="stats" id="hostStats"></div>${ctl}<button class="hbtn warn" data-host="newGame">New game (reset everything)</button>`;
+  $("#hostBody").querySelectorAll("[data-host]").forEach(b => b.onclick = () => { host(b.dataset.host); h.dataset.closed="1"; $("#hostToggle").textContent="▴"; });
+  renderHostStats();
+}
+function renderHostStats(){
+  const st=S.st, el=$("#hostStats"); if (!el||!st) return;
+  el.innerHTML = `<span>Phase</span><b>${st.phase}</b><span>Round</span><b>${st.round||"–"} / ${st.rounds}</b><span>Joined</span><b>${st.players.length}</b><span>Online</span><b>${st.players.filter(p=>p.connected).length}</b><span>Ready</span><b>${readyCount()} / ${roster().length||"–"}</b><span>Votes in</span><b>${st.voteCount} / ${roster().length||"–"}</b>`;
+}
+function bind(){
+  const on = (sel, fn) => { const el=$(sel); if (el) el.onclick = fn; };
+  document.querySelectorAll("[data-join]").forEach(b => b.onclick = () => send("join", {name:b.dataset.join}, "join"));
+  on("#joinCustom", ()=>{ const v=$("#customName").value; if (v.trim()) send("join", {name:v}, "join"); });
+  on("#copy", async ()=>{ const u=location.origin+location.pathname; try{ await navigator.clipboard.writeText(u); $("#copy").textContent="Copied!"; }catch{ const r=document.createRange(); r.selectNodeContents($("#shareUrl")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); } });
+  on("#kickMode", ()=>{ const k=$("#kickList"); k.hidden=!k.hidden; });
+  document.querySelectorAll("[data-kick]").forEach(b => b.onclick = () => host("kick", b.dataset.kick));
+  on("#start", ()=>host("start")); on("#startAnyway", ()=>host("start"));
+  on("#ready", ()=>send("ready", {}, "ready"));
+  document.querySelectorAll("[data-sel]").forEach(b => b.onclick = () => { S.selected=b.dataset.sel; render(true); });
+  on("#vote", ()=>{ if (S.selected) send("vote", {target:S.selected}, "vote"); });
+  on("#toDiscuss", ()=>host("discussion")); on("#toVote", ()=>host("voting"));
+  on("#toScores", ()=>host("scores")); on("#revote", ()=>host("revote")); on("#next", ()=>host("next")); on("#again", ()=>host("playAgain"));
+}
+
+/* ---------- confetti ---------- */
+const cv = $("#confetti"), cx = cv.getContext("2d"); let parts=[], raf=null;
+function burst(n){
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  cv.width = innerWidth*devicePixelRatio; cv.height = innerHeight*devicePixelRatio;
+  const cols=["#ff4fa3","#3ff0e6","#9dff57","#ffd34f","#8b6cff","#ffffff"];
+  for (let i=0;i<n;i++) parts.push({x:cv.width/2 + (Math.random()-.5)*cv.width*.3, y:cv.height*.35, vx:(Math.random()-.5)*18*devicePixelRatio, vy:(-Math.random()*16-4)*devicePixelRatio, g:.45*devicePixelRatio, s:(6+Math.random()*8)*devicePixelRatio, c:cols[i%cols.length], r:Math.random()*6.28, vr:(Math.random()-.5)*.3, life:1});
+  if (!raf) raf = requestAnimationFrame(step);
+}
+function step(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  parts = parts.filter(p=>p.life>0 && p.y<cv.height+40);
+  for (const p of parts){ p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.r+=p.vr; p.life-=.006; cx.save(); cx.translate(p.x,p.y); cx.rotate(p.r); cx.globalAlpha=Math.max(0,p.life); cx.fillStyle=p.c; cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2); cx.restore(); }
+  raf = parts.length ? requestAnimationFrame(step) : (cx.clearRect(0,0,cv.width,cv.height), null);
+}
+</script>
+</body>
+</html>
