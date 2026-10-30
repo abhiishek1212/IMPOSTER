@@ -1,6 +1,7 @@
 // Who's the Impostor? — authoritative game server (Node + Express + Socket.io)
 // All secrets (impostor identity, words, individual votes) live here and are only
 // ever sent to the one player who is allowed to see them.
+const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const express = require("express");
@@ -9,12 +10,15 @@ const crypto = require("crypto");
 
 const PORT = process.env.PORT || 3000;
 const HOST_CODE = process.env.HOST_CODE || "owl-7731"; // open the site with ?host=<code> to become host
-const PLAYERS = (process.env.PLAYERS || "Mayra,Abhishek,Eduardo,Justin,Jason,Jaime,Luis,Anna,Brian").split(",").map(s => s.trim()).filter(Boolean);
+const PLAYERS = (process.env.PLAYERS || "Mayra,Abhishek,Eduardo,Justin,Jason,Jaime,Luis,Brian,Chris,Jenny,Johnnie,Kasi,Kent,Uriel").split(",").map(s => s.trim()).filter(Boolean);
 const ROUNDS = Number(process.env.ROUNDS || 3);
 const CLUE_SECONDS = Number(process.env.CLUE_SECONDS || 120);
 const DISCUSS_SECONDS = Number(process.env.DISCUSS_SECONDS || 120);
 const MIN_PLAYERS = 3;
 const PAIRS = require("./words");
+// headshots live in public/avatars/<lowercase name>.jpg; names without one fall back to initials
+const AVATARS = Object.fromEntries(fs.readdirSync(path.join(__dirname, "public", "avatars"))
+  .filter(f => f.endsWith(".jpg")).map(f => [f.slice(0, -4), `/avatars/${f}`]));
 
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
@@ -48,7 +52,7 @@ function publicState() {
   const showResult = ["reveal", "scores", "final"].includes(G.phase);
   return {
     gameId: G.gameId, phase: G.phase, round: G.round, rounds: ROUNDS, voteAttempt: G.voteAttempt,
-    names: PLAYERS, minPlayers: MIN_PLAYERS,
+    names: PLAYERS, avatars: AVATARS, minPlayers: MIN_PLAYERS,
     players: Object.values(G.players).map(p => ({ id: p.id, name: p.name, connected: p.connected, ready: !!p.ready, voted: !!p.voted })),
     roster: G.roster, scores: G.scores, voteCandidates: G.voteCandidates,
     voteCount: Object.keys(G.votes).length,
