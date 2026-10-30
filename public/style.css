@@ -150,3 +150,160 @@ h1.glow{background:linear-gradient(90deg,#fff,var(--pink),var(--gold),var(--cyan
 .wob{display:inline-block;animation:wobble 2.4s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:480px){.trow{grid-template-columns:90px 1fr 30px}.timer{font-size:1.2rem}}
+
+/* ---------- v2: headshots + motion ---------- */
+.av{position:relative;overflow:hidden;flex:none;width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;font-weight:900;font-size:.8rem;color:#120a24;box-shadow:0 0 0 2px rgba(255,255,255,.18)}
+.av i{font-style:normal}
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 20%}
+.av.lg{width:48px;height:48px;font-size:1rem}
+.av.xl{width:76px;height:76px;font-size:1.4rem;box-shadow:0 0 0 3px var(--line)}
+.av.hero{width:clamp(110px,28vw,168px);height:clamp(110px,28vw,168px);font-size:3rem;box-shadow:0 0 0 4px var(--violet),0 0 40px rgba(139,108,255,.55)}
+.chip .av,.cand .av{margin:0}
+.chip{padding-right:14px}
+.name{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px}
+.name:hover:not(:disabled) .av{box-shadow:0 0 0 3px var(--pink),0 0 24px rgba(255,79,163,.6);transform:scale(1.06)}
+.name .av,.cand .av{transition:transform .2s,box-shadow .2s}
+.name:disabled .av{filter:grayscale(1)}
+.cand{flex-direction:column;gap:8px;padding:16px 10px}
+.cand:hover .av{transform:scale(1.08)}
+.cand.sel .av{box-shadow:0 0 0 4px var(--pink),0 0 28px rgba(255,79,163,.7);animation:bounce .5s}
+.cand.sel{transform:translateY(-3px)}
+.lrow{grid-template-columns:44px 1fr auto}
+.lwho{display:flex;align-items:center;gap:10px}
+.trow{grid-template-columns:150px 1fr 36px}
+.trow .who{display:flex;align-items:center;gap:8px}
+.trow .barf{background:linear-gradient(90deg,var(--pink),var(--gold))}
+.trow.imp .barf{background:linear-gradient(90deg,var(--red),#ff9a5a)}
+.spot{display:flex;justify-content:center;margin-top:14px;animation:slam .5s cubic-bezier(.2,1.4,.3,1)}
+.spot.bad .av{box-shadow:0 0 0 4px var(--red),0 0 50px rgba(255,90,90,.7);animation:shake .6s .4s both}
+.spot.gold .av{box-shadow:0 0 0 4px var(--gold),0 0 50px rgba(255,211,79,.7);animation:float 2.6s ease-in-out infinite}
+.champs{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.me-av{display:flex;justify-content:center;margin-bottom:14px;animation:popin .6s cubic-bezier(.2,1.3,.3,1) both}
+.role-imp .me-av .av{box-shadow:0 0 0 4px var(--red),0 0 40px rgba(255,90,90,.6)}
+.role-crew .me-av .av{box-shadow:0 0 0 4px var(--lime),0 0 40px rgba(157,255,87,.5)}
+
+/* secret card flips in, impostor glows red */
+.role-imp,.role-crew{animation:flipin .7s cubic-bezier(.2,.9,.3,1.1) both;perspective:900px}
+.role-imp .big-emoji,.role-crew .big-emoji{animation:float 3s ease-in-out infinite}
+.role-imp .word{text-shadow:0 0 28px rgba(255,90,90,.55);animation:glowred 2s ease-in-out infinite}
+.role-crew .word{text-shadow:0 0 28px rgba(157,255,87,.4)}
+
+/* living background + stage */
+body{background-size:140% 140%;animation:bgshift 24s ease-in-out infinite alternate}
+.stage{animation:fadein .35s ease,stageglow 6s ease-in-out infinite alternate}
+.stage>.eyebrow,.stage>h1,.stage>h2,.stage>.lead{animation:rise .5s cubic-bezier(.2,.9,.3,1) both}
+.stage>h1{animation-delay:.06s}.stage>.lead{animation-delay:.12s}
+.count{animation:rise .5s .15s both}
+.chip.done{animation:bounce .45s}
+.pill.on{box-shadow:0 0 14px rgba(139,108,255,.5)}
+.btn.p:not(:disabled),.btn.c:not(:disabled){background-size:200% 100%}
+.btn::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-120%);pointer-events:none}
+.btn{position:relative;overflow:hidden}
+.btn:hover:not(:disabled)::after{transform:translateX(120%);transition:transform .6s}
+.tag.imp{animation:glowred 1.6s ease-in-out infinite}
+.timer.low{text-shadow:0 0 14px var(--red)}
+.trow .barf{animation:growbar .9s cubic-bezier(.2,.8,.2,1) both;transform-origin:left}
+.delta{display:inline-block;animation:slam .5s .3s both}
+.lrow:nth-child(1){border-color:var(--gold);box-shadow:0 0 22px rgba(255,211,79,.25)}
+
+@keyframes bounce{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}15%{transform:translateX(-9px) rotate(-3deg)}35%{transform:translateX(9px) rotate(3deg)}55%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes flipin{from{opacity:0;transform:rotateY(90deg) scale(.8)}to{opacity:1;transform:none}}
+@keyframes glowred{0%,100%{filter:drop-shadow(0 0 0 rgba(255,90,90,0))}50%{filter:drop-shadow(0 0 16px rgba(255,90,90,.7))}}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes bgshift{from{background-position:0 0}to{background-position:100% 100%}}
+@keyframes stageglow{from{box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 0 rgba(139,108,255,0)}to{box-shadow:0 30px 80px rgba(0,0,0,.45),0 0 60px rgba(139,108,255,.22)}}
+@keyframes growbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (max-width:480px){.trow{grid-template-columns:110px 1fr 30px}.av.xl{width:60px;height:60px}.names{grid-template-columns:repeat(auto-fill,minmax(110px,1fr))}}
+
+/* ---------- v3: Halloween dream ---------- */
+:root{
+  --bg:#0a0618; --bg2:rgba(30,18,64,.72); --card:rgba(26,14,58,.62); --line:rgba(173,140,255,.32);
+  --fg:#fff4e6; --muted:#b9a9e0;
+  --pink:#ff7a1a; --cyan:#c9b8ff; --lime:#8dff6a; --red:#ff4d6d; --gold:#ffb347; --violet:#9b7bff;
+  --display:'Creepster','Bungee','Impact',sans-serif;
+}
+body{background-color:var(--bg);letter-spacing:.005em;
+  background-image:radial-gradient(1100px 650px at 15% -10%, #3b1a6e 0%, transparent 62%),radial-gradient(900px 600px at 105% 105%, #5a1a3a 0%, transparent 60%),linear-gradient(180deg,#0a0618,#150a30 60%,#1d0b2e)}
+h1,h2,.word,.drama,.count,.timer,.brand,.lrow .rk,.lrow .pts,.wcard .w{letter-spacing:.06em}
+h1{font-size:clamp(2.3rem,7.5vw,4.2rem)}
+h2{font-size:clamp(1.6rem,5vw,2.4rem)}
+.word{font-size:clamp(2.8rem,11vw,5.6rem)}
+.drama{font-size:clamp(3rem,12vw,6rem)}
+.timer{font-size:1.8rem}
+
+/* dream scenery */
+.dream{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.stars i{position:absolute;border-radius:50%;background:#fff;box-shadow:0 0 8px 2px rgba(201,184,255,.8);opacity:.15;animation:twinkle 4s ease-in-out infinite}
+.moon{position:absolute;right:8%;top:6%;width:clamp(110px,16vw,210px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#fffbe8 0%,#ffe9a8 45%,#f3c870 100%);
+  box-shadow:0 0 60px 20px rgba(255,214,130,.35),0 0 180px 80px rgba(255,170,80,.18);opacity:.85;animation:moonbob 9s ease-in-out infinite,moonpulse 6s ease-in-out infinite}
+.moon::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 62% 40%,rgba(190,150,90,.35) 0 9%,transparent 10%),radial-gradient(circle at 30% 65%,rgba(190,150,90,.3) 0 12%,transparent 13%),radial-gradient(circle at 70% 72%,rgba(190,150,90,.25) 0 6%,transparent 7%)}
+.fog{position:absolute;left:-30%;width:160%;height:45vh;border-radius:50%;filter:blur(60px);opacity:.5}
+.fog.f1{bottom:-12vh;background:radial-gradient(ellipse at center,rgba(155,123,255,.55),transparent 65%);animation:mist 38s ease-in-out infinite alternate}
+.fog.f2{bottom:8vh;background:radial-gradient(ellipse at center,rgba(255,122,26,.28),transparent 65%);animation:mist 52s ease-in-out infinite alternate-reverse}
+.fog.f3{top:-10vh;background:radial-gradient(ellipse at center,rgba(120,70,200,.4),transparent 65%);animation:mist 60s ease-in-out infinite alternate}
+.vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(5,2,15,.75) 100%)}
+.bgfx span{animation-name:dreamfloat;filter:blur(.6px) drop-shadow(0 0 12px rgba(255,150,60,.35))}
+.bgfx .bat{bottom:auto;left:-10%;opacity:.55;animation-name:batfly;animation-timing-function:ease-in-out;filter:drop-shadow(0 0 8px rgba(0,0,0,.6))}
+
+/* dreamy glass stage */
+.stage{background:var(--card);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);border:1px solid var(--line);
+  animation:dreamin .8s ease both,stagefloat 9s ease-in-out infinite alternate}
+.stage::before{background:radial-gradient(600px 300px at 15% 0%,rgba(255,122,26,.14),transparent 60%),radial-gradient(600px 300px at 90% 100%,rgba(155,123,255,.2),transparent 60%)}
+.stage::after{content:"";position:absolute;inset:-40%;background:conic-gradient(from 0deg,transparent 0 70%,rgba(255,179,71,.08) 80%,transparent 90%);animation:spin 30s linear infinite;pointer-events:none}
+.stage>.eyebrow,.stage>h1,.stage>h2,.stage>.lead,.stage .big-emoji{animation:dreamin .9s cubic-bezier(.2,.8,.3,1) both}
+.stage>h1{animation-delay:.1s}.stage>.lead{animation-delay:.2s}
+.big-emoji{filter:drop-shadow(0 0 24px rgba(255,150,60,.55))}
+.wob{animation:wobble 3s ease-in-out infinite,haunt 6s ease-in-out infinite}
+.brand .bt{background-image:linear-gradient(90deg,#ff7a1a,#ffb347,#c9b8ff,#ff7a1a)}
+h1.glow{background-image:linear-gradient(90deg,#fff4e6,#ff7a1a,#ffb347,#c9b8ff,#fff4e6);filter:drop-shadow(0 0 22px rgba(255,122,26,.55))}
+.pill{background:rgba(30,18,64,.6);backdrop-filter:blur(8px)}
+.pill.on{border-color:var(--pink);box-shadow:0 0 16px rgba(255,122,26,.5)}
+
+/* buttons */
+.btn.p{background:linear-gradient(135deg,#ff7a1a,#ffb347);color:#2b1000}
+.btn.c{background:linear-gradient(135deg,#b9a6ff,#7f6bff);color:#120a30}
+.btn.l{background:linear-gradient(135deg,#8dff6a,#3ff0b0);color:#0d2a05}
+.btn{box-shadow:0 8px 0 rgba(0,0,0,.35),0 0 26px rgba(255,122,26,.18)}
+.btn.c{box-shadow:0 8px 0 rgba(0,0,0,.35),0 0 26px rgba(155,123,255,.3)}
+.btn.g{background:rgba(30,18,64,.7)}
+.tag.crew{background:rgba(141,255,106,.12)}
+
+/* cards, chips, ballot get a soft ghost glow */
+.name,.cand,.chip,.lrow,.wcard{background:var(--bg2);backdrop-filter:blur(8px)}
+.name:hover:not(:disabled){border-color:var(--pink);box-shadow:0 0 28px rgba(255,122,26,.35)}
+.cand.sel{border-color:var(--pink);background:rgba(255,122,26,.16);box-shadow:0 0 32px rgba(255,122,26,.4)}
+.name:hover:not(:disabled) .av,.cand.sel .av{box-shadow:0 0 0 3px var(--pink),0 0 26px rgba(255,122,26,.7)}
+.av{box-shadow:0 0 0 2px rgba(201,184,255,.4),0 0 14px rgba(155,123,255,.35)}
+.av.xl{box-shadow:0 0 0 3px rgba(155,123,255,.55),0 0 24px rgba(155,123,255,.35);animation:ghostbob 5s ease-in-out infinite}
+.names .name:nth-child(2n) .av.xl{animation-delay:-1.4s}.names .name:nth-child(3n) .av.xl{animation-delay:-2.8s}
+.av.hero{box-shadow:0 0 0 4px var(--pink),0 0 50px rgba(255,122,26,.6);animation:ghostbob 5s ease-in-out infinite}
+.spot.bad .av{box-shadow:0 0 0 4px var(--red),0 0 60px rgba(255,77,109,.8)}
+.spot.gold .av{box-shadow:0 0 0 4px var(--gold),0 0 60px rgba(255,179,71,.8)}
+.trow .barf{background:linear-gradient(90deg,#ff7a1a,#ffb347)}
+.trow .barw{background:rgba(10,6,24,.6)}
+.copyrow code,.custom input{background:rgba(10,6,24,.6)}
+.host{background:rgba(20,10,45,.92);backdrop-filter:blur(12px);border-color:var(--pink)}
+.host header{color:var(--pink)}
+.hbtn{background:linear-gradient(135deg,#ff7a1a,#ffb347);color:#2b1000}
+.conn{color:var(--muted)}
+
+/* secret cards */
+.role-imp .word{text-shadow:0 0 30px rgba(255,77,109,.7)}
+.role-crew .word{text-shadow:0 0 30px rgba(141,255,106,.5)}
+
+@keyframes dreamin{from{opacity:0;transform:translateY(18px) scale(.97);filter:blur(14px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes stagefloat{from{transform:translateY(0)}to{transform:translateY(-6px)}}
+@keyframes ghostbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes haunt{0%,100%{filter:drop-shadow(0 0 10px rgba(255,150,60,.4))}50%{filter:drop-shadow(0 0 26px rgba(255,150,60,.9))}}
+@keyframes twinkle{0%,100%{opacity:.1;transform:scale(.8)}50%{opacity:.95;transform:scale(1.4)}}
+@keyframes moonbob{0%,100%{transform:translateY(0)}50%{transform:translateY(14px)}}
+@keyframes moonpulse{0%,100%{box-shadow:0 0 60px 20px rgba(255,214,130,.3),0 0 160px 70px rgba(255,170,80,.14)}50%{box-shadow:0 0 90px 34px rgba(255,214,130,.5),0 0 220px 110px rgba(255,170,80,.26)}}
+@keyframes mist{from{transform:translateX(-8%) scale(1)}to{transform:translateX(8%) scale(1.15)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes dreamfloat{0%{transform:translate(0,0) rotate(0);opacity:0}12%{opacity:.5}50%{transform:translate(var(--sway,40px),-60vh) rotate(18deg)}88%{opacity:.35}100%{transform:translate(calc(var(--sway,40px)*-1),-125vh) rotate(-12deg);opacity:0}}
+@keyframes batfly{0%{transform:translate(0,0) scale(.8) rotate(-8deg)}25%{transform:translate(30vw,-6vh) scale(1) rotate(6deg)}50%{transform:translate(60vw,4vh) scale(.9) rotate(-6deg)}75%{transform:translate(90vw,-8vh) scale(1.05) rotate(8deg)}100%{transform:translate(125vw,2vh) scale(.8) rotate(-4deg)}}
+@media (max-width:480px){.moon{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.stars i{opacity:.6}}
