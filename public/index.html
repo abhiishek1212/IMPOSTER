@@ -6,7 +6,7 @@
 <title>Who's the Impostor? · WGU PA Team</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Nunito:wght@500;700;900&display=swap">
 <link rel="stylesheet" href="/style.css">
 <style>
 .conn{position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));font-size:.75rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px;z-index:2}
@@ -16,15 +16,16 @@
 </style>
 </head>
 <body>
+<div class="dream" aria-hidden="true"><div class="stars" id="stars"></div><div class="moon"></div><div class="fog f1"></div><div class="fog f2"></div><div class="fog f3"></div><div class="vignette"></div></div>
 <div class="bgfx" id="bgfx" aria-hidden="true"></div>
 <div class="wrap">
   <div class="bar">
-    <div class="brand"><span>🦉</span><span class="bt">WGU PA TEAM<small>Sprint party · Who's the Impostor?</small></span></div>
+    <div class="brand"><span class="wob">🎃</span><span class="bt">WGU PA TEAM<small>Halloween dream · Who's the Impostor?</small></span></div>
     <div class="pills" id="pills"></div>
   </div>
   <div class="stage" id="stage">
     <div class="eyebrow">Connecting</div>
-    <h1>Setting up the game room…</h1>
+    <h1>Drifting into the dream…</h1>
     <p class="lead">Keep Microsoft Teams open for voice. Use this page for secret words, voting, and scores.</p>
   </div>
 </div>
@@ -43,12 +44,18 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ls = { get(k){ try{ return localStorage.getItem(k); }catch{ return null; } }, set(k,v){ try{ localStorage.setItem(k,v); }catch{} } };
 const colorFor = name => { let h=0; for (const c of name) h=(h*31+c.charCodeAt(0))>>>0; return `hsl(${h%360} 85% 70%)`; };
+const avatarSrc = name => S.st?.avatars?.[String(name).trim().toLowerCase()] || null;
+const av = (name, size="") => { const src = avatarSrc(name); const ini = esc(initials(name));
+  return `<span class="av ${size}" style="background:${colorFor(name)}">${src ? `<img src="${src}" alt="" loading="lazy" onerror="this.remove()">` : ""}<i>${ini}</i></span>`; };
 const initials = name => name.trim().split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
 const toast = (msg, ms=4000) => { const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), ms); };
 const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
 
-/* background drift */
-(()=>{ const el=$("#bgfx"); const em=["🕵️","☕","🍵","🐶","🐱","🍕","🎮","🎉","🔍","🦉","🚀","🐛","🎲","🤫"]; for (let i=0;i<16;i++){ const sp=document.createElement("span"); sp.textContent=em[i%em.length]; sp.style.left=(Math.random()*96)+"%"; sp.style.animationDuration=(18+Math.random()*22)+"s"; sp.style.animationDelay=(-Math.random()*30)+"s"; sp.style.fontSize=(1.4+Math.random()*2)+"rem"; el.appendChild(sp);} })();
+/* dream layers: drifting spooky emoji, twinkling stars, passing bats */
+(()=>{ const el=$("#bgfx"); const em=["🎃","👻","🦇","🕸️","🌙","⭐","🕯️","🍬","🔮","💀","🧙","🍭","🕷️","✨"];
+  for (let i=0;i<18;i++){ const sp=document.createElement("span"); sp.textContent=em[i%em.length]; sp.style.left=(Math.random()*96)+"%"; sp.style.animationDuration=(26+Math.random()*30)+"s"; sp.style.animationDelay=(-Math.random()*40)+"s"; sp.style.fontSize=(1.4+Math.random()*2.2)+"rem"; sp.style.setProperty("--sway",(Math.random()*120-60)+"px"); el.appendChild(sp); }
+  for (let i=0;i<4;i++){ const b=document.createElement("span"); b.className="bat"; b.textContent="🦇"; b.style.top=(8+Math.random()*50)+"%"; b.style.animationDuration=(14+Math.random()*10)+"s"; b.style.animationDelay=(-Math.random()*24)+"s"; b.style.fontSize=(1.2+Math.random()*1.2)+"rem"; el.appendChild(b); }
+  const st=$("#stars"); for (let i=0;i<70;i++){ const d=document.createElement("i"); d.style.left=Math.random()*100+"%"; d.style.top=Math.random()*100+"%"; d.style.animationDelay=(Math.random()*6)+"s"; d.style.animationDuration=(3+Math.random()*5)+"s"; const z=1+Math.random()*2.5; d.style.width=d.style.height=z+"px"; st.appendChild(d); } })();
 
 /* ---------- identity ---------- */
 let pid = ls.get("impostor:pid"); if (!pid){ pid = crypto.randomUUID().replace(/-/g,""); ls.set("impostor:pid", pid); }
@@ -91,15 +98,15 @@ $("#hostHead").onclick = () => { const h=$("#host"); h.dataset.closed = h.datase
 /* ---------- render ---------- */
 function setStage(html){ const stage=$("#stage"); if (window.morphdom){ const t=document.createElement("div"); t.innerHTML=html; morphdom(stage, t, {childrenOnly:true}); } else stage.innerHTML = html; }
 function chips(ids, doneFn){
-  return `<div class="chips">${ids.map(id=>{ const p=pById(id); const n=p?.name||"?"; const d=doneFn?doneFn(id):null; return `<div class="chip ${d===true?"done":d===false?"wait":""} ${id===pid?"me":""} ${p && !p.connected?"offline":""}" title="${p && !p.connected?"disconnected":""}"><span class="av" style="background:${colorFor(n)}">${esc(initials(n))}</span>${esc(n)}</div>`; }).join("")}</div>`;
+  return `<div class="chips">${ids.map(id=>{ const p=pById(id); const n=p?.name||"?"; const d=doneFn?doneFn(id):null; return `<div class="chip ${d===true?"done":d===false?"wait":""} ${id===pid?"me":""} ${p && !p.connected?"offline":""}" title="${p && !p.connected?"disconnected":""}">${av(n)}${esc(n)}</div>`; }).join("")}</div>`;
 }
 function leaderboard(scores, deltas){
   const ids = roster().length ? roster() : Object.keys(scores||{});
   const rows = ids.map(id=>({id, pts:scores?.[id]||0})).sort((a,b)=>b.pts-a.pts || nameOf(a.id).localeCompare(nameOf(b.id)));
   const medal = i => ["🥇","🥈","🥉"][i] || `#${i+1}`;
-  return `<div class="lb">${rows.map((r,i)=>`<div class="lrow"><span class="rk">${medal(i)}</span><span>${esc(nameOf(r.id))}${deltas&&deltas[r.id]?`<span class="delta">+${deltas[r.id]}</span>`:""}</span><span class="pts">${r.pts}</span></div>`).join("")}</div>`;
+  return `<div class="lb">${rows.map((r,i)=>`<div class="lrow"><span class="rk">${medal(i)}</span><span class="lwho">${av(nameOf(r.id))}${esc(nameOf(r.id))}${deltas&&deltas[r.id]?`<span class="delta">+${deltas[r.id]}</span>`:""}</span><span class="pts">${r.pts}</span></div>`).join("")}</div>`;
 }
-const title = `<div class="eyebrow">WGU PA Team · Sprint celebration</div><div class="big-emoji wob">🕵️</div><h1 class="glow">WHO'S THE IMPOSTOR?</h1>`;
+const title = `<div class="eyebrow">WGU PA Team · Halloween night</div><div class="big-emoji wob">🎃</div><h1 class="glow">WHO'S THE IMPOSTOR?</h1>`;
 function spectator(msg){ return `<div class="big-emoji">👀</div><h1>SPECTATING</h1><p class="lead">${esc(msg)} You joined after the game started, so you'll be dealt in next game.</p>${leaderboard(S.st.scores)}`; }
 
 function render(force){
@@ -107,15 +114,15 @@ function render(force){
   const key = JSON.stringify([st && {...st, voteCount: (st.phase==="voting" && !me()?.voted) ? "x" : st.voteCount}, S.secret, S.selected, S.isHost, pid]);
   if (!force && key===S.lastKey) return; S.lastKey = key;
   renderPills(); renderHost();
-  if (!st){ setStage(`${title}<p class="lead">Connecting to the game server…</p>`); bind(); return; }
+  if (!st){ setStage(`${title}<p class="lead">Falling asleep…</p>`); bind(); return; }
   const m = me(); const N = st.names.length;
   switch (st.phase){
     case "lobby": {
       const joined = st.players;
       const takenNames = new Map(joined.map(p=>[p.name.toLowerCase(), p.id]));
       setStage(`${title}
-        ${m ? `<p class="lead">You're in as <b style="color:var(--lime)">${esc(m.name)}</b>. Waiting for the host to start.</p>` : `<p class="lead">Join the game. Pick your name:</p>
-        <div class="names">${st.names.map(n=>{ const by=takenNames.get(n.toLowerCase()); return `<button class="name" data-join="${esc(n)}" ${by?"disabled":""}>${esc(n)}</button>`; }).join("")}</div>
+        ${m ? `<div class="me-av">${av(m.name,"hero")}</div><p class="lead">You're in as <b style="color:var(--lime)">${esc(m.name)}</b>. The dream begins when the host says so.</p>` : `<p class="lead">Fall asleep with us. Pick your name:</p>
+        <div class="names">${st.names.map(n=>{ const by=takenNames.get(n.toLowerCase()); return `<button class="name" data-join="${esc(n)}" ${by?"disabled":""}>${av(n,"xl")}<span>${esc(n)}</span></button>`; }).join("")}</div>
         <div class="custom"><input id="customName" placeholder="Not on the list? Type a name" maxlength="24"><button class="btn g" id="joinCustom">Join</button></div>`}
         <div class="count">${joined.length} / ${N}<small>players joined</small></div>
         ${chips(joined.map(p=>p.id))}
@@ -127,17 +134,17 @@ function render(force){
       if (!inRoster()) { setStage(spectator(`Round ${st.round} is being dealt.`)); break; }
       const s = S.secret && S.secret.round===st.round && S.secret.gameId===st.gameId ? S.secret : null; const isReady = !!m?.ready;
       setStage(s ? `<div class="${s.role==="imp"?"role-imp":"role-crew"}">
-          <span class="tag ${s.role}">${s.role==="imp"?"🔴 You ARE the impostor":"🟢 You are NOT the impostor"}</span>
-          <p class="lead">Your secret word is</p><div class="big-emoji">${s.e}</div><div class="word">${esc(s.w)}</div>
+          <div class="me-av">${av(m.name,"hero")}</div><span class="tag ${s.role}">${s.role==="imp"?"🔴 You ARE the impostor":"🟢 You are NOT the impostor"}</span>
+          <p class="lead">The dream whispers your secret word…</p><div class="big-emoji">${s.e}</div><div class="word">${esc(s.w)}</div>
           <p class="lead">${s.role==="imp"?"Blend in and don't get caught! Everyone else shares a different, related word.":"Keep this secret! One player has a different word."}</p>
           <div class="row"><button class="btn ${s.role==="imp"?"p":"l"}" id="ready" ${isReady?"disabled":""}>${isReady?"✓ You're ready":"I'm ready"}</button></div>
           <div class="count">${readyCount()} / ${roster().length}<small>players ready</small></div>${chips(roster(), id=>!!pById(id)?.ready)}</div>`
-        : `<div class="big-emoji">🔐</div><h2>Dealing your secret…</h2><p class="lead">One moment.</p>`);
+        : `<div class="big-emoji">🔮</div><h2>Conjuring your secret…</h2><p class="lead">One moment.</p>`);
       break; }
     case "clues": case "discussion": {
       const clue = st.phase==="clues"; const s = S.secret;
-      setStage(`<div class="eyebrow">Round ${st.round} · ${clue?"Clue round":"Discussion"}</div><div class="big-emoji">${clue?"🗣️":"🕵️"}</div>
-        <h1>${clue?"GIVE ONE WORD":"WHO'S LYING?"}</h1>
+      setStage(`<div class="eyebrow">Round ${st.round} · ${clue?"Clue round":"Discussion"}</div><div class="big-emoji">${clue?"👻":"🔮"}</div>
+        <h1>${clue?"WHISPER ONE WORD":"WHO'S A NIGHTMARE?"}</h1>
         <p class="lead">${clue?"Say ONE word as your clue, out loud in Teams. Don't say your secret word. Go around in the order below.":"Discuss out loud in Teams. Who gave a clue that didn't fit?"}</p>
         ${s && inRoster() ? `<p class="note">Your word: ${s.e} <b>${esc(s.w)}</b> ${s.role==="imp"?"(you're the impostor 🤫)":""}</p>`:""}
         ${chips(roster())}
@@ -146,19 +153,19 @@ function render(force){
     case "voting": {
       if (!inRoster()) { setStage(spectator("Voting is underway.")); break; }
       const voted = !!m?.voted; const cands = (st.voteCandidates||roster()).filter(id=>id!==pid);
-      setStage(`<div class="eyebrow">Round ${st.round}${(st.voteAttempt||1)>1?" · Tiebreak":""}</div><div class="big-emoji">🚨</div><h1>WHO IS THE IMPOSTOR?</h1>
+      setStage(`<div class="eyebrow">Round ${st.round}${(st.voteAttempt||1)>1?" · Tiebreak":""}</div><div class="big-emoji">🔦</div><h1>WHO IS THE IMPOSTOR?</h1>
         ${st.voteCandidates ? `<p class="lead">It was a tie. Vote again between the tied players.</p>`:`<p class="lead">Pick exactly one person. You can't change your vote once it's cast.</p>`}
         ${voted ? `<div class="count" style="color:var(--lime)">✅ Vote submitted<small>${st.voteCount} / ${roster().length} votes in</small></div>${chips(roster(), id=>!!pById(id)?.voted)}`
-           : `<div class="ballot">${cands.map(id=>{const n=nameOf(id); return `<button class="cand ${S.selected===id?"sel":""}" data-sel="${id}"><span class="av" style="background:${colorFor(n)}">${esc(initials(n))}</span>${esc(n)}</button>`;}).join("")}</div>
+           : `<div class="ballot">${cands.map(id=>{const n=nameOf(id); return `<button class="cand ${S.selected===id?"sel":""}" data-sel="${id}">${av(n,"lg")}<span>${esc(n)}</span></button>`;}).join("")}</div>
              <div class="row"><button class="btn p" id="vote" ${S.selected?"":"disabled"}>Cast vote</button></div><div class="count"><span id="voteN">${st.voteCount}</span> / ${roster().length}<small>votes in</small></div>`}`);
       break; }
     case "reveal": {
       const r = st.result; const sus = r.suspected ? nameOf(r.suspected) : null;
       S.revealStep = elapsed()<2.5?"a":elapsed()<5.5?"b":"c";
       setStage(`<div class="reveal" data-step="${S.revealStep}">
-        <div class="stepA"><div class="big-emoji">🚨</div><h1>THE VOTES ARE IN</h1></div>
-        <div class="stepB">${r.tie ? `<p class="lead">It's a tie between</p><div class="drama">${r.tiedIds.map(nameOf).map(esc).join(" & ")}</div>` : r.escaped ? `<p class="lead">No agreement. The team let someone slip away…</p>` : `<p class="lead">The team suspects…</p><div class="drama">${esc(sus)}</div>`}</div>
-        <div class="stepC">${r.tie ? `<p class="lead">Host, start the tiebreak vote.</p>` : `<p class="lead" style="margin-top:26px">🕵️ The impostor was…</p><div class="drama red">${esc(nameOf(r.impostor))} ${r.caught?"😱":"😂"}</div>
+        <div class="stepA"><div class="big-emoji">🕯️</div><h1>THE VOTES ARE IN</h1></div>
+        <div class="stepB">${r.tie ? `<p class="lead">It's a tie between</p><div class="drama">${r.tiedIds.map(nameOf).map(esc).join(" & ")}</div>` : r.escaped ? `<p class="lead">No agreement. The team let someone slip away…</p>` : `<p class="lead">The team suspects…</p><div class="spot">${av(sus,"hero")}</div><div class="drama">${esc(sus)}</div>`}</div>
+        <div class="stepC">${r.tie ? `<p class="lead">Host, start the tiebreak vote.</p>` : `<p class="lead" style="margin-top:26px">🕵️ The impostor was…</p><div class="spot bad">${av(nameOf(r.impostor),"hero")}</div><div class="drama red">${esc(nameOf(r.impostor))} ${r.caught?"😱":"😂"}</div>
           <p class="lead">${r.caught ? "Caught! +2 points to everyone who voted right." : "Got away with it! +5 points to the impostor."}</p>
           <div class="words"><div class="wcard"><div class="l">Secret word</div><div class="e">${r.imp.e}</div><div class="w" style="color:var(--red)">${esc(r.imp.w)}</div></div><div class="wcard"><div class="l">Common word</div><div class="e">${r.common.e}</div><div class="w" style="color:var(--lime)">${esc(r.common.w)}</div></div></div>`}
           ${S.isHost ? `<div class="row">${r.tie ? `<button class="btn p" id="revote">Start tiebreak vote</button>` : `<button class="btn c" id="toScores">Show results</button>`}</div>`:""}
@@ -168,14 +175,14 @@ function render(force){
       const r = st.result; const ids = roster(); const max = Math.max(1, ...Object.values(r.tally));
       setStage(`<div class="eyebrow">Round ${st.round} results</div><h1>${r.caught?"IMPOSTOR CAUGHT":"IMPOSTOR ESCAPED"}</h1>
         <p class="lead">${esc(nameOf(r.impostor))} had ${r.imp.e} <b>${esc(r.imp.w)}</b>. Everyone else had ${r.common.e} <b>${esc(r.common.w)}</b>.</p>
-        <div class="tally">${ids.map(id=>({id,n:r.tally[id]||0})).sort((a,b)=>b.n-a.n).map(x=>`<div class="trow ${x.id===r.impostor?"imp":""}"><span class="who">${esc(nameOf(x.id))}${x.id===r.impostor?" 🕵️":""}</span><div class="barw"><div class="barf" style="width:${(x.n/max)*100}%"></div></div><span class="n">${x.n}</span></div>`).join("")}</div>
+        <div class="tally">${ids.map(id=>({id,n:r.tally[id]||0})).sort((a,b)=>b.n-a.n).map(x=>`<div class="trow ${x.id===r.impostor?"imp":""}"><span class="who">${av(nameOf(x.id))}${esc(nameOf(x.id))}${x.id===r.impostor?" 🕵️":""}</span><div class="barw"><div class="barf" style="width:${(x.n/max)*100}%"></div></div><span class="n">${x.n}</span></div>`).join("")}</div>
         <h2 style="margin-top:28px">🏆 Leaderboard</h2>${leaderboard(st.scores, r.deltas)}
         ${S.isHost ? `<div class="row"><button class="btn p" id="next">${st.round>=st.rounds?"Final results":"Next round"}</button></div>`:""}`);
       break; }
     case "final": {
       const ids = roster(); const top = ids.map(id=>({id,pts:st.scores?.[id]||0})).sort((a,b)=>b.pts-a.pts);
       const champs = top.filter(x=>x.pts===top[0]?.pts);
-      setStage(`<div class="big-emoji">🎉</div><h1>GAME OVER</h1><p class="lead">🏆 Impostor champion${champs.length>1?"s":""}</p><div class="drama">${champs.map(c=>esc(nameOf(c.id))).join(" & ")}</div>
+      setStage(`<div class="big-emoji">🎃</div><h1>WAKE UP!</h1><p class="lead">🏆 Nightmare champion${champs.length>1?"s":""}</p><div class="champs">${champs.map(c=>`<div class="spot gold">${av(nameOf(c.id),"hero")}</div>`).join("")}</div><div class="drama">${champs.map(c=>esc(nameOf(c.id))).join(" & ")}</div>
         <h2 style="margin-top:28px">Final leaderboard</h2>${leaderboard(st.scores)}
         ${S.isHost ? `<div class="row"><button class="btn p" id="again">Play again</button></div>`:""}`);
       if (S._finalBurst!==st.gameId){ S._finalBurst=st.gameId; burst(260); setTimeout(()=>burst(200), 1200); }
@@ -230,7 +237,7 @@ const cv = $("#confetti"), cx = cv.getContext("2d"); let parts=[], raf=null;
 function burst(n){
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   cv.width = innerWidth*devicePixelRatio; cv.height = innerHeight*devicePixelRatio;
-  const cols=["#ff4fa3","#3ff0e6","#9dff57","#ffd34f","#8b6cff","#ffffff"];
+  const cols=["#ff7a1a","#ffb347","#8dff6a","#9b7bff","#c9b8ff","#ffffff"];
   for (let i=0;i<n;i++) parts.push({x:cv.width/2 + (Math.random()-.5)*cv.width*.3, y:cv.height*.35, vx:(Math.random()-.5)*18*devicePixelRatio, vy:(-Math.random()*16-4)*devicePixelRatio, g:.45*devicePixelRatio, s:(6+Math.random()*8)*devicePixelRatio, c:cols[i%cols.length], r:Math.random()*6.28, vr:(Math.random()-.5)*.3, life:1});
   if (!raf) raf = requestAnimationFrame(step);
 }
